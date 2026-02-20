@@ -1,0 +1,19 @@
+name: Example Domain Detector
+version: "1.0.0"
+severity: info
+tags:
+  - demo
+  - http
+http:
+  method: GET
+  path: /
+  headers:
+    User-Agent: Specter-Demo/0.1
+  match_status:
+    - 200
+  match_body:
+    - "Example Domain"
+  timeout: 5s
+  retry:
+    max_attempts: 2
+    backoff: 300ms
