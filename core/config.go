@@ -17,6 +17,6 @@ func NewConfig(configFile string) *Config {
 		QueueSize:        256,
 		PluginDir:        "plugins",
 		UserAgent:        "Specter/1.0",
-		BlacklistDomains: []string{"google.com", "facebook.com", "twitter.com", "linkedin.com", "github.com", "instagram.com", "youtube.com", "wikipedia.org", "amazon.com", "netflix.com"},
+		BlacklistDomains: []string{"google.com", "facebook.com", "twitter.com", "linkedin.com", "github.com", "instagram.com", "youtube.com", "wikipedia.org", "amazon.com", "netflix.com", "googletagmanager.com"},
 	}
 }

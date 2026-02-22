@@ -18,5 +18,5 @@ func Banner() {
 		  
 `
 
-	fmt.Println(banner + "Version: " + VERSION)
+	fmt.Println(banner + "Version: " + VERSION + "\n\n")
 }

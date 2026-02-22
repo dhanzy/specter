@@ -2,17 +2,22 @@ package cmd
 
 import (
 	"Specter/core"
+	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	target     string
-	pluginDir  string
-	configFile string
+	target       string
+	pluginDir    string
+	configFile   string
+	activePlugin string
 )
 
 func Execute() error {
@@ -25,10 +30,12 @@ func Execute() error {
 	}
 
 	rootCmd.PersistentFlags().StringVar(&target, "target", "", "Target URL scan (required)")
-	rootCmd.PersistentFlags().StringVar(&pluginDir, "plugin", "", "Plugin directory path")
+	rootCmd.PersistentFlags().StringVar(&pluginDir, "plugin-dir", "plugins", "Plugin directory path")
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", ".", "Configuration file path")
+	rootCmd.PersistentFlags().StringVarP(&activePlugin, "plugin", "p", "", "Plugin to use from")
 
 	rootCmd.MarkPersistentFlagRequired("target")
+	rootCmd.MarkPersistentFlagRequired("plugin")
 	return rootCmd.Execute()
 }
 
@@ -43,11 +50,37 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	pluginpath := path.Join(pluginDir, activePlugin)
+	if ok := strings.HasPrefix(pluginpath, ".yaml"); !ok {
+		pluginpath = pluginpath + ".yaml"
+	}
+	info, err := os.Stat(pluginpath)
+	if os.IsNotExist(err) {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("Plugin should be a file")
+	}
+
 	crawler := core.NewCrawler(httpClient, core.CrawlerOptions{
 		MaxDepth:         cfg.MaxDepth,
 		UserAgent:        cfg.UserAgent,
 		BlacklistDomains: cfg.BlacklistDomains,
+		QueueSize:        cfg.QueueSize,
 	})
 
-	return crawler.Crawl(targetUrl)
+	seed := core.Target{URL: targetUrl}
+
+	targets := make([]core.DetectionResult, 0)
+
+	if err := crawler.Crawl([]core.Target{seed}, &targets); err != nil {
+		return err
+	}
+
+	engine, err := core.NewPluginEngine(pluginpath)
+	if err != nil {
+		return err
+	}
+	engine.Execute(targetUrl.String())
+	return nil
 }
