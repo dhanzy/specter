@@ -67,20 +67,28 @@ func run(cmd *cobra.Command, args []string) error {
 		UserAgent:        cfg.UserAgent,
 		BlacklistDomains: cfg.BlacklistDomains,
 		QueueSize:        cfg.QueueSize,
+		Workers:          cfg.Concurrency,
 	})
 
 	seed := core.Target{URL: targetUrl}
 
-	targets := make([]core.DetectionResult, 0)
+	// targets := make([]core.DetectionResult, 0)
 
-	if err := crawler.Crawl([]core.Target{seed}, &targets); err != nil {
-		return err
-	}
+	targetsCh := make(chan core.DetectionResult, cfg.QueueSize)
 
-	engine, err := core.NewPluginEngine(pluginpath)
+	go func() {
+		if err := crawler.Crawl([]core.Target{seed}, targetsCh); err != nil {
+			fmt.Printf("Crawlser stopped error %v\n", err)
+		}
+	}()
+
+	engine, err := core.NewPluginEngine(pluginpath, cfg)
 	if err != nil {
 		return err
 	}
-	engine.Execute(targetUrl.String())
+
+	for target := range targetsCh {
+		engine.Execute(target)
+	}
 	return nil
 }

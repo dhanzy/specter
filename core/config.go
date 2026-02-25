@@ -8,6 +8,15 @@ type Config struct {
 	UserAgent        string   `yaml:"user_agent"`
 	HTTPTimeout      int      `yaml:"http_timeout"`
 	BlacklistDomains []string `yaml:"blacklist_domains"`
+	Proxy            ProxyConfig
+}
+
+type ProxyConfig struct {
+	Address  string `yaml:"address"`
+	Port     int    `yaml:"port"`
+	Password string `yaml:"password"`
+	Enabled  bool   `yaml:"enabled"`
+	Type     string `yaml:"type"`
 }
 
 func NewConfig(configFile string) *Config {
@@ -18,5 +27,12 @@ func NewConfig(configFile string) *Config {
 		PluginDir:        "plugins",
 		UserAgent:        "Specter/1.0",
 		BlacklistDomains: []string{"google.com", "facebook.com", "twitter.com", "linkedin.com", "github.com", "instagram.com", "youtube.com", "wikipedia.org", "amazon.com", "netflix.com", "googletagmanager.com"},
+		Proxy: ProxyConfig{
+			Address:  "127.0.0.1",
+			Port:     8080,
+			Enabled:  false,
+			Type:     "https",
+			Password: "",
+		},
 	}
 }

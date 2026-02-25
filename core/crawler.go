@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"golang.org/x/net/html"
 )
@@ -33,6 +34,7 @@ type CrawlerOptions struct {
 	UserAgent        string
 	BlacklistDomains []string
 	QueueSize        int
+	Workers          int
 }
 
 func NewCrawler(client *http.Client, options CrawlerOptions) *Crawler {
@@ -45,20 +47,41 @@ func NewCrawler(client *http.Client, options CrawlerOptions) *Crawler {
 	}
 }
 
-func (c *Crawler) Crawl(seeds []Target, targets *[]DetectionResult) error {
-
-	queue := make([]Target, 0, c.opts.QueueSize)
-	queue = append(queue, seeds...)
+func (c *Crawler) Crawl(seeds []Target, targets chan<- DetectionResult) error {
+	defer close(targets)
+	// queue := make([]Target, 0, c.opts.QueueSize)
+	queue := make(chan Target, c.opts.QueueSize)
+	var wg sync.WaitGroup
+	// queue = append(queue, seeds...)
 
 	detector := NewFrameworkDetector()
 
-	for i := 0; i < len(queue); i++ {
-		c.handle(queue[i], &queue, detector, targets)
+	for i := 0; i < c.opts.Workers; i++ {
+		go func() {
+			for target := range queue {
+				c.handle(target, queue, detector, targets, &wg)
+			}
+		}()
 	}
+
+	for _, seed := range seeds {
+		wg.Add(1)
+		queue <- seed
+	}
+
+	go func() {
+		wg.Wait()
+		close(queue)
+	}()
+
+	wg.Wait()
+
 	return nil
 }
 
-func (c *Crawler) handle(target Target, queue *[]Target, detector *FrameworkDetector, targets *[]DetectionResult) {
+func (c *Crawler) handle(target Target, queue chan<- Target, detector *FrameworkDetector, targets chan<- DetectionResult, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	if c.hostDepthExceeded(target.URL) {
 		return
 	}
@@ -98,7 +121,10 @@ func (c *Crawler) handle(target Target, queue *[]Target, detector *FrameworkDete
 			continue
 		}
 
-		*queue = append(*queue, Target{URL: link})
+		wg.Add(1)
+
+		// *queue = append(*queue, Target{URL: link})
+		queue <- Target{URL: link}
 	}
 	return
 }
@@ -129,7 +155,7 @@ func (c *Crawler) hostDepthExceeded(link *url.URL) bool {
 
 }
 
-func (c *Crawler) fetchLinks(targetURL *url.URL, detector *FrameworkDetector, targets *[]DetectionResult) ([]*url.URL, error) {
+func (c *Crawler) fetchLinks(targetURL *url.URL, detector *FrameworkDetector, targets chan<- DetectionResult) ([]*url.URL, error) {
 	req, err := http.NewRequest(http.MethodGet, targetURL.String(), nil)
 	if err != nil {
 		return nil, err
@@ -156,7 +182,8 @@ func (c *Crawler) fetchLinks(targetURL *url.URL, detector *FrameworkDetector, ta
 		}
 	}
 
-	*targets = append(*targets, *detectionResult)
+	// *targets = append(*targets, *detectionResult)
+	targets <- *detectionResult
 
 	nodes, err := html.Parse(resp.Body)
 
